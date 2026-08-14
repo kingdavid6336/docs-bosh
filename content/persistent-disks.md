@@ -126,10 +126,12 @@ During the disk migration from one disk type and size to another, the Director c
 
 ### Filesystem smaller than partition after a failed grow {: #filesystem-smaller-than-partition }
 
-When BOSH resizes a persistent disk it first extends the partition to fill the new block device, then grows the filesystem to fill the partition. If the partition resize succeeds but the filesystem grow fails (for example because `resize2fs` exits with `Permission denied` due to pre-existing ext4 filesystem errors), the two operations are left in an inconsistent state:
+When using [IaaS-native disk resize](cpi-api-v2-method/resize-disk.md), BOSH resizes the existing disk in place: the Director asks the IaaS to grow the block device, then the agent extends the partition to fill it and grows the filesystem. If the partition resize succeeds but the filesystem grow fails (for example because `resize2fs` exits with `Permission denied` due to pre-existing ext4 filesystem errors), the two operations are left in an inconsistent state:
 
 - the partition already spans the full disk, so subsequent deploys take the "no resize needed" branch and never revisit the filesystem
 - the deployment succeeds with no visible error, leaving the filesystem silently smaller than the partition
+
+This failure mode does not apply to the fallback path (when native resize is disabled or the CPI does not support it): in that case the Director creates a new disk, copies data from the old one, and orphans it, so each deploy starts with a freshly partitioned and formatted disk.
 
 The initial failure surfaces as:
 
@@ -149,7 +151,7 @@ EXT4-fs (sdb1): error count since last fsck: 494734
 EXT4-fs warning (device sdb1): ext4_resize_begin:82: There are errors in the filesystem, so online resizing is not allowed
 ```
 
-The kernel refuses to grow a filesystem that has errors. Once the partition already spans the disk, `resize2fs` is never called again on subsequent deploys, so the error does not reappear and the undersized filesystem goes undetected.
+The kernel refuses to grow a filesystem that has errors. Once the partition already spans the disk, the agent's `AdjustPersistentDiskPartitioning` takes the "no resize needed" branch on every subsequent deploy and never calls `resize2fs` again, so the error does not reappear and the undersized filesystem goes undetected.
 
 ---
 
