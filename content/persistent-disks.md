@@ -124,6 +124,33 @@ During the disk migration from one disk type and size to another, the Director c
 !!! note
     An IaaS might disallow attaching particular disk types and sizes to certain VM types. Consult your IaaS documentation for more information.
 
+### Filesystem smaller than partition after a failed grow {: #filesystem-smaller-than-partition }
+
+When BOSH resizes a persistent disk it first extends the partition to fill the new block device, then grows the filesystem to fill the partition. If the partition resize succeeds but the filesystem grow fails (for example because `resize2fs` exits with `Permission denied` due to pre-existing ext4 filesystem errors), the two operations are left in an inconsistent state:
+
+- the partition already spans the full disk, so subsequent deploys take the "no resize needed" branch and never revisit the filesystem
+- the deployment succeeds with no visible error, leaving the filesystem silently smaller than the partition
+
+The initial failure surfaces as:
+
+```text
+Error: Action Failed get_task: Task <id> result: Adjusting persistent disk partitioning: Failed to grow filesystem: Failed to grow Ext4 filesystem: Running command: 'resize2fs -f /dev/sdb1', stdout: 'Filesystem at /dev/sdb1 is mounted on /var/vcap/store; on-line resizing required
+old_desc_blocks = 13, new_desc_blocks = 128
+', stderr: 'resize2fs 1.46.5 (30-Dec-2021)
+resize2fs: Permission denied to resize filesystem
+': exit status 1
+```
+
+The underlying cause is visible in the kernel log:
+
+```text
+EXT4-fs (sdb1): warning: mounting fs with errors, running e2fsck is recommended
+EXT4-fs (sdb1): error count since last fsck: 494734
+EXT4-fs warning (device sdb1): ext4_resize_begin:82: There are errors in the filesystem, so online resizing is not allowed
+```
+
+The kernel refuses to grow a filesystem that has errors. Once the partition already spans the disk, `resize2fs` is never called again on subsequent deploys, so the error does not reappear and the undersized filesystem goes undetected.
+
 ---
 
 ## Orphaned Disks {: #orphaned-disks }
