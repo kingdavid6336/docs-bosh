@@ -165,7 +165,7 @@ df -B1 /var/vcap/store
 sudo blockdev --getsize64 <partition>
 ```
 
-Replace `<partition>` with the device reported by `findmnt`. Note the partition path — it will be needed during remediation. Both values are in bytes; if the filesystem size from `df` is significantly smaller than the partition size from `blockdev`, the instance is affected. Confirm the filesystem type is ext4 with `blkid <partition>` - the remediation steps below apply to ext4 only.
+Replace `<partition>` with the device reported by `findmnt`. Note the partition path - it will be needed during remediation. Both values are in bytes; if the filesystem size from `df` is significantly smaller than the partition size from `blockdev`, the instance is affected. Confirm the filesystem type is ext4 with `blkid <partition>` - the remediation steps below apply to ext4 only.
 
 #### Remediation
 
@@ -176,7 +176,7 @@ bosh -d <deployment> ssh <job>/<id>
 ```
 
 ```shell
-# Note the partition — it is needed after jobs are stopped
+# Note the partition - it is needed after jobs are stopped
 findmnt -n -o SOURCE /var/vcap/store
 
 # Stop all jobs; this also tears down the process namespaces holding bind mounts on the disk
