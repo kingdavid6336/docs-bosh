@@ -160,12 +160,12 @@ bosh -d <deployment> ssh <job>/<id>
 ```
 
 ```shell
-df -BG /var/vcap/store
 findmnt -n -o SOURCE /var/vcap/store
+df -h /var/vcap/store
 sudo blockdev --getsize64 <partition>
 ```
 
-Replace `<partition>` with the device reported by `findmnt`. Note the partition path - it will be needed during remediation. If the filesystem size from `df` is significantly smaller than the partition size from `blockdev`, the instance is affected.
+Replace `<partition>` with the device reported by `findmnt`. Note the partition path — it will be needed during remediation. The `df` output shows the filesystem size in human-readable units; `blockdev` returns the partition size in bytes (1 GiB = 1,073,741,824 bytes). If the filesystem size is significantly smaller than the partition, the instance is affected. Confirm the filesystem type is ext4 with `blkid <partition>` before proceeding — the remediation steps below apply to ext4 only.
 
 #### Remediation
 
@@ -185,13 +185,17 @@ sudo monit stop all
 # Wait until all processes show 'not monitored'
 sudo monit summary
 
-# Unmount, repair filesystem errors, grow to fill the partition
+# Unmount the disk; the following command should produce no output if successful
 sudo umount /var/vcap/store
+findmnt /var/vcap/store
+
+# Repair filesystem errors and grow to fill the partition
 sudo e2fsck -fy <partition>
 sudo resize2fs <partition>
 
-# Remount and restart jobs
+# Remount, verify the filesystem now fills the partition, then restart jobs
 sudo mount <partition> /var/vcap/store
+df -h /var/vcap/store
 sudo monit start all
 ```
 
