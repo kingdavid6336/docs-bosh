@@ -499,8 +499,8 @@ The Director does not enforce how many networks can be assigned to each instance
 | **AWS**       | Manual       | Supported<sup>1</sup>                 | Supported<sup>2</sup> |
 |               | VIP          | Supported<sup>1</sup> (from v107.0.2) | —                     |
 |               |              |                                       |                       |
-| **Azure**     | Manual       | —                                     | —                     |
-|               | VIP          | —                                     | —                     |
+| **Azure**     | Manual       | [Supported](azure-cpi.md#dual-stack-networks) | —                     |
+|               | VIP          | Supported                             | —                     |
 |               |              |                                       |                       |
 | **OpenStack** | Manual       | —                                     | —                     |
 |               | VIP          | —                                     | —                     |
