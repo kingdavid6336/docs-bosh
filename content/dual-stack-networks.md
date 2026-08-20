@@ -31,7 +31,7 @@ The cloud config defines how BOSH allocates network resources. For dual stack, c
 - **Reserved Ranges**: Reserve gateway and infrastructure addresses to prevent conflicts
 
 !!! tip
-    For IaaS-specific network configuration details, see [Network cloud properties](aws-cpi.md#networks).
+    For IaaS-specific configuration, see [CPI-specific network cloud properties](networks.md#cloud-properties).
 
 **Basic Dual Stack Example:**
 

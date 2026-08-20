@@ -54,6 +54,10 @@ networks:
       accelerated_networking: true
 ```
 
+### Dual-stack Networks {: #dual-stack-networks }
+
+The Azure CPI can place IPv4 and IPv6 manual networks on the same NIC. Configure both address families on one Azure subnet, have both BOSH networks reference the same `resource_group_name`, `virtual_network_name`, and `subnet_name`, and assign the networks the same [`nic_group`](network-interface-groups.md) in the deployment manifest. See [Dual Stack Networks](dual-stack-networks.md) for the manifest structure.
+
 ### Vip Network
 
 Schema for `cloud_properties` section:
@@ -120,8 +124,9 @@ Schema for `cloud_properties` section:
 
     - **name** [String, required]: The name of the load balancer.
     - **resource\_group\_name** [String, optional]: The name of the load balancer's resource group. Default value is the `resource_group_name` specified in the global CPI settings.
-    - **backend\_pool\_name** [String, optional]: The name of the load balancer backend address pool which VMs' IPs should be attached to. If not specified, defaults to the load balancer's "first" backend pool (as returned by the Azure API).
+    - **backend\_pool\_name** [String, optional]: The name of the load balancer backend address pool which VMs' IPv4 addresses should be attached to. If not specified, defaults to the load balancer's "first" backend pool (as returned by the Azure API).
         - This property is supported in CPI [v37.7.0+](https://github.com/cloudfoundry/bosh-azure-cpi-release/releases/tag/v37.7.0).
+    - **backend\_pool\_name\_v6** [String, optional]: The name of the load balancer backend address pool which VMs' IPv6 addresses should be attached to. If not specified, IPv6 addresses are not attached to a backend pool.
 
 - **application_gateway** [String, optional]: Name of the [application gateway](https://azure.microsoft.com/en-us/services/application-gateway/) which the VMs should be attached to.
 
@@ -251,7 +256,9 @@ vm_extensions:
       # resource_group_name is optional
       resource_group_name: <resource-group-name>
       # backend_pool_name is optional
-      backend_pool_name: <backend-pool-name>
+      backend_pool_name: <ipv4-backend-pool-name>
+      # backend_pool_name_v6 is optional
+      backend_pool_name_v6: <ipv6-backend-pool-name>
 ```
 
 Example of multiple load balancers (4 backend address pools of 3 LBs):
