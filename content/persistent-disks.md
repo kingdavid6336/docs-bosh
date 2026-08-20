@@ -124,6 +124,83 @@ During the disk migration from one disk type and size to another, the Director c
 !!! note
     An IaaS might disallow attaching particular disk types and sizes to certain VM types. Consult your IaaS documentation for more information.
 
+### Filesystem smaller than partition after a failed grow {: #filesystem-smaller-than-partition }
+
+When using [IaaS-native disk resize](cpi-api-v2-method/resize-disk.md), BOSH resizes the existing disk in place: the Director asks the IaaS to grow the block device, then the agent extends the partition to fill it and grows the filesystem. If the partition resize succeeds but the filesystem grow fails (for example because `resize2fs` exits with `Permission denied` due to pre-existing ext4 filesystem errors), the two operations are left in an inconsistent state:
+
+- the partition already spans the full disk, so subsequent deploys take the "no resize needed" branch and never revisit the filesystem
+- the deployment succeeds with no visible error, leaving the filesystem silently smaller than the partition
+
+This failure mode does not apply to the fallback path (when native resize is disabled or the CPI does not support it): in that case the Director creates a new disk, copies data from the old one, and orphans it, so each deploy starts with a freshly partitioned and formatted disk.
+
+The initial failure surfaces as:
+
+```text
+Error: Action Failed get_task: Task <id> result: Adjusting persistent disk partitioning: Failed to grow filesystem: Failed to grow Ext4 filesystem: Running command: 'resize2fs -f /dev/sdb1', stdout: 'Filesystem at /dev/sdb1 is mounted on /var/vcap/store; on-line resizing required
+old_desc_blocks = 13, new_desc_blocks = 128
+', stderr: 'resize2fs 1.46.5 (30-Dec-2021)
+resize2fs: Permission denied to resize filesystem
+': exit status 1
+```
+
+The underlying cause is visible in the kernel log:
+
+```text
+EXT4-fs (sdb1): warning: mounting fs with errors, running e2fsck is recommended
+EXT4-fs (sdb1): error count since last fsck: 494734
+EXT4-fs warning (device sdb1): ext4_resize_begin:82: There are errors in the filesystem, so online resizing is not allowed
+```
+
+The kernel refuses to grow a filesystem that has errors. Once the partition already spans the disk, the agent's `AdjustPersistentDiskPartitioning` takes the "no resize needed" branch on every subsequent deploy and never calls `resize2fs` again, so the error does not reappear and the undersized filesystem goes undetected.
+
+To check whether an instance is affected, SSH into the instance and compare the filesystem size against the partition size:
+
+```shell
+bosh -d <deployment> ssh <job>/<id>
+```
+
+```shell
+findmnt -n -o SOURCE /var/vcap/store
+df -B1 /var/vcap/store
+sudo blockdev --getsize64 <partition>
+```
+
+Replace `<partition>` with the device reported by `findmnt`. Note the partition path - it will be needed during remediation. Both values are in bytes; if the filesystem size from `df` is significantly smaller than the partition size from `blockdev`, the instance is affected. Confirm the filesystem type is ext4 with `blkid <partition>` - the remediation steps below apply to ext4 only.
+
+#### Remediation
+
+Stop jobs from within the instance using `monit`, which keeps the disk attached to the VM throughout:
+
+```shell
+bosh -d <deployment> ssh <job>/<id>
+```
+
+```shell
+# Note the partition - it is needed after jobs are stopped
+findmnt -n -o SOURCE /var/vcap/store
+
+# Stop all jobs; this also tears down the process namespaces holding bind mounts on the disk
+sudo monit stop all
+
+# Wait until all processes show 'not monitored'
+sudo monit summary
+
+# Unmount the disk; the following command should produce no output if successful
+sudo umount /var/vcap/store
+findmnt /var/vcap/store
+
+# Repair filesystem errors and grow to fill the partition
+sudo e2fsck -fy <partition>
+sudo resize2fs <partition>
+
+# Remount, verify the filesystem now fills the partition, then restart jobs
+sudo mount <partition> /var/vcap/store
+df -h /var/vcap/store
+sudo monit start all
+```
+
+Wait for all processes to reach `running` state before exiting the SSH session. If `resize2fs` reports `The filesystem is already N blocks long. Nothing to do!`, the filesystem already fills the partition and no grow is needed.
+
 ---
 
 ## Orphaned Disks {: #orphaned-disks }
