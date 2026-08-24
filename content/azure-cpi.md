@@ -84,6 +84,11 @@ Schema for `cloud_properties` section:
 
 - **instance_type** [String, required]: Type of the [instance](https://azure.microsoft.com/en-us/documentation/articles/virtual-machines-linux-sizes/). Example: `Standard_A2`. [Basic Tier Virtual Machines](https://azure.microsoft.com/en-us/blog/basic-tier-virtual-machines-2/) should not be used if you need to bind the instance to Azure Load Balancer (ALB), because Basic Tier VM doesn't support ALB.
 
+- **security_profile** [Hash, optional]: Azure VM security profile. When omitted, the CPI leaves `securityProfile` out of the VM creation request and Azure applies its default.
+    - **security_type** [String, optional]: Either `TrustedLaunch` (default) or `Standard`.
+    - **secure_boot_enabled** [Boolean, optional]: Defaults to `true` for `TrustedLaunch` and `false` for `Standard`. It must be `false` for `Standard`. Trusted Launch always enables vTPM.
+    - `TrustedLaunch` requires a supported VM size and a compatible Generation 2 stemcell. Enabling Secure Boot also requires signed boot components. See [Trusted Launch for Azure VMs](https://learn.microsoft.com/en-us/azure/virtual-machines/trusted-launch).
+
 - **root_disk** [Hash, optional]: OS disk of custom size.
     - **size** [Integer, optional]: Specifies the disk size in MiB.
         - The size must be greater than 3 * 1024 and less than the max disk size for [unmanaged](https://azure.microsoft.com/en-us/pricing/details/storage/unmanaged-disks/) or [managed](https://azure.microsoft.com/en-us/pricing/details/managed-disks/) disk. Please always use `N * 1024` as the size because Azure always uses GiB but not MiB.
@@ -234,6 +239,18 @@ vm_types:
     ephemeral_disk:
       use_root_disk: false
       size: 30_720
+```
+
+Example of a Trusted Launch VM:
+
+```yaml
+vm_types:
+- name: trusted-launch
+  cloud_properties:
+    instance_type: Standard_D2as_v6
+    security_profile:
+      security_type: TrustedLaunch
+      secure_boot_enabled: true
 ```
 
 Example of a load balancer (simple configuration):
